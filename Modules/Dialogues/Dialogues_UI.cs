@@ -135,7 +135,7 @@ public static class Dialogues_UI
             interaction.CallCommands(npc);
         }
 
-        if (dialogue.Interactions.Count(i => i.Type is Dialogues_DataTypes.RawDialogue.InteractionType.Option) == 0) return;
+        if (dialogue.Interactions.All(i => i.Type is not Dialogues_DataTypes.RawDialogue.InteractionType.Option)) return;
         
  
         UI.SetActive(true);

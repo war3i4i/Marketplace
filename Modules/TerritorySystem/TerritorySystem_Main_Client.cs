@@ -1,4 +1,6 @@
-﻿using System.Reflection.Emit;
+﻿using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Reflection.Emit;
 using System.Threading.Tasks;
 using BepInEx.Configuration;
 using Guilds;
@@ -451,22 +453,23 @@ public static class TerritorySystem_Main_Client
     private static async void DoMapMagic()
     { 
         if (originalMapColors == null || TerritorySystem_DataTypes.SyncedTerritoriesData.Value == null || TerritorySystem_DataTypes.SyncedTerritoriesData.Value.Territories.Count == 0) return;
-        ResetAndExplore(Minimap.instance.m_explored, Minimap.instance.m_exploredOthers);
-        foreach (var territory in TerritorySystem_DataTypes.SyncedTerritoriesData.Value.Territories.Where(t => t.AdditionalFlags.HasFlagFast(TerritorySystem_DataTypes.AdditionalTerritoryFlags.RevealOnMap)))
-            FakeReveal(new Vector3(territory.X[0], 0, territory.Y[0]), territory.Radius, territory.Shape);
-        
         if (!UseMapDraw.Value) return;
+        ResetAndExplore();
         MapMagicCounter++;
         int currentCounter = MapMagicCounter;
         try
         {
             Color[] mapColors = new Color[originalMapColors.Length];
             Color[] heightColors = new Color[originalHeightColors.Length];
+            bool[] copyExplored = new bool[Minimap.instance.m_explored.Length];
+            Color[] fogColors = new Color[Minimap.instance.m_fogTexture.width * Minimap.instance.m_fogTexture.height];
             int segments = Environment.ProcessorCount;
             await Task.Run(() =>
             {
+                Array.Copy(Minimap.instance.m_explored, copyExplored, Minimap.instance.m_explored.Length);
                 Array.Copy(originalMapColors, mapColors, originalMapColors.Length);
                 Array.Copy(originalHeightColors, heightColors, originalHeightColors.Length);
+                Array.Copy(Minimap.instance.m_fogTexture.GetPixels(), fogColors, fogColors.Length);
                 Parallel.ForEach(Enumerable.Range(0, segments), segment =>
                 {
                     float pixelSize = Minimap.instance.m_pixelSize;
@@ -480,6 +483,7 @@ public static class TerritorySystem_Main_Client
                                  .SyncedTerritoriesData
                                  .Value.Territories.Where(t => t.DrawOnMap()).OrderBy(t => t.Priority))
                     {
+                        bool hasReveal = territory.AdditionalFlags.HasFlagFast(TerritorySystem_DataTypes.AdditionalTerritoryFlags.RevealOnMap);
                         Color32 MainColor = territory.GetColor();
                         bool externalWater = territory.ShowExternalWater;
                         int y = Mathf.Clamp(Mathf.RoundToInt((territory.Shape switch
@@ -555,25 +559,23 @@ public static class TerritorySystem_Main_Client
                                         _ => MainColor
                                     };
                                 } 
-                                else
-                                {
-                                    mapColors[idx] = MainColor;
-                                }
+                                else mapColors[idx] = MainColor;
+                                if (externalWater) heightColors[idx] = new Color(Mathf.Clamp(heightColors[idx].r, 29f, 89), 0, 0);
+                                if (hasReveal) fogColors[idx].r = 0f;
 
-                                if (externalWater)
-                                {
-                                    heightColors[idx] = new Color(Mathf.Clamp(heightColors[idx].r, 29f, 89), 0, 0);
-                                }
                             }
                         }
                     }
-                });
+                }); 
             });
             if (currentCounter != MapMagicCounter) return;
             Minimap.instance.m_mapTexture.SetPixels(mapColors);
-            Minimap.instance.m_mapTexture.Apply();
             Minimap.instance.m_heightTexture.SetPixels(heightColors);
-            Minimap.instance.m_heightTexture.Apply();
+            Minimap.instance.m_fogTexture.SetPixels(fogColors);
+            Minimap.instance.m_mapTexture.Apply(false); 
+            Minimap.instance.m_heightTexture.Apply(false);
+            Minimap.instance.m_fogTexture.Apply(false);
+            Minimap.instance.m_explored = copyExplored;
         }
         catch (Exception ex)
         {
@@ -581,7 +583,7 @@ public static class TerritorySystem_Main_Client
         }
     }
     
-    private static void ResetAndExplore(bool[] explored, bool[] exploredOthers)
+    private static void ResetAndExplore_Old(bool[] explored, bool[] exploredOthers)
     {
         Minimap.instance.m_sharedMapHint.gameObject.SetActive(false);
         int length = explored.Length;
@@ -616,6 +618,32 @@ public static class TerritorySystem_Main_Client
         Minimap.instance.m_fogTexture.SetPixels(pixels);
     }
 
+    private static void ResetAndExplore()
+    {
+        int length = Minimap.instance.m_explored.Length;
+        Color[] pixels = new Color[Minimap.instance.m_fogTexture.width * Minimap.instance.m_fogTexture.height];
+        int partitions = Math.Max(1, Environment.ProcessorCount);
+        int chunkSize = (length + partitions - 1) / partitions;
+        var ranges = new List<(int start, int end)>(partitions);
+        for (int p = 0; p < partitions; p++)
+        {
+            int start = p * chunkSize;
+            int end = Math.Min(start + chunkSize, length);
+            if (start < end)
+                ranges.Add((start, end));
+        }
+        Parallel.ForEach(ranges, range =>
+        {
+            for (int i = range.start; i < range.end; i++)
+            {
+                Color c = Color.white;
+                if (Minimap.instance.m_explored[i]) c.r = 0f;
+                if (Minimap.instance.m_exploredOthers[i]) c.g = 0f;
+                pixels[i] = c;
+            }
+        });
+        Minimap.instance.m_fogTexture.SetPixels(pixels);
+    }
     
     private static void FakeReveal(Vector3 worldPos, float radius, TerritorySystem_DataTypes.TerritoryShape shape)
     {

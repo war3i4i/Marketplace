@@ -292,13 +292,11 @@ public static class TerritorySystem_Main_Server
  
         public bool Equals(TerritoryCompareData other)
         {
-            return false;
-            
             if (Shape != other.Shape || Colors.Length != other.Colors.Length || X.Length != other.X.Length || Y.Length != other.Y.Length)
             {
                 return false;
             }
-            
+             
             if (HasReveal != other.HasReveal)
             {
                 return false;
