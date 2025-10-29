@@ -44,7 +44,7 @@ public static class DiscordStuff
         WebhookMessages = new Dictionary<Webhooks, ConfigEntry<string>>
         {
             [Webhooks.Marketplace] = DiscordConfig.Bind("Webhook Messages", "Marketplace Webhook Message",
-                "**{0}** posted **x{1} {2}** with **{3} gold each**"),
+                "**{0}** posted **x{1} {2}** with **{3} {4} each**"),
             [Webhooks.Gambler] =
                 DiscordConfig.Bind("Webhook Messages", "Gambler Webhook Message", "**{0}** won **x{1} {2}**!"),
             [Webhooks.Quest] =
@@ -79,6 +79,7 @@ public static class DiscordStuff
         pkg.Write(data.Count);
         pkg.Write(data.ItemName);
         pkg.Write(data.Price);
+        pkg.Write(ZNetScene.instance.GetPrefab(data.Currency).GetComponent<ItemDrop>().m_itemData.m_shared.m_name);
         pkg.SetPos(0);
         SendWebhook(0, pkg);
     }
@@ -97,7 +98,7 @@ public static class DiscordStuff
         {
             case Webhooks.Marketplace:
                 text = string.Format(WebhookMessages[type].Value, playername, pkg.ReadInt(),
-                    Localization.instance.Localize(pkg.ReadString()), pkg.ReadInt());
+                    Localization.instance.Localize(pkg.ReadString()), pkg.ReadInt(), pkg.ReadString());
                 break;
             case Webhooks.Gambler:
                 text = string.Format(WebhookMessages[type].Value, playername, pkg.ReadInt(),

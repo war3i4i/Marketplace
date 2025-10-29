@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection.Emit;
+using AsyncModLoader;
 using BepInEx.Logging;
 using Marketplace.ExternalLoads;
 using Marketplace.Paths;
@@ -15,10 +16,10 @@ namespace System.Runtime.CompilerServices
 namespace Marketplace 
 { 
     [BepInPlugin(GUID, PluginName, PluginVersion)]
+    [BepInDependency("kg.AsyncModLoader", BepInDependency.DependencyFlags.HardDependency)]
     [BepInDependency("org.bepinex.plugins.groups", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("org.bepinex.plugins.guilds", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("org.bepinex.plugins.jewelcrafting", BepInDependency.DependencyFlags.SoftDependency)]
-    [BepInDependency("Soulcatcher", BepInDependency.DependencyFlags.SoftDependency)]
     public class Marketplace : BaseUnityPlugin
     { 
         private const string GUID = "MarketplaceAndServerNPCs"; 
@@ -44,13 +45,14 @@ namespace Marketplace
             Client,
             Server,
             Both
-        }
+        } 
         
         public static WorkingAs WorkingAsType;
         public static Dictionary<MarketplaceRPC, MethodInfo> RoutedRPCs = new();
-        
-        private void Awake()
+        private void Awake() => StartCoroutine(AsyncAwake());
+        private IEnumerator AsyncAwake()
         {
+            this.AsyncModLoaderInit();
             WorkingAsType = SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null
                 ? WorkingAs.Server
                 : Config.Bind("General", "Use Marketplace Locally", false, "Enable Market Local Usage").Value
@@ -70,6 +72,7 @@ namespace Marketplace
                 UseOptimizedDatasetSchema = true,
                 UseValuesOfEnums = true,
             };
+            yield return AssetStorage.Initialize();
             IEnumerable<KeyValuePair<Market_Autoload, Type>> toAutoload = AccessTools.GetTypesFromAssembly(Assembly.GetExecutingAssembly())
                 .Where(t => t.GetCustomAttribute<Market_Autoload>() != null)
                 .Select(x => new KeyValuePair<Market_Autoload, Type>(x.GetCustomAttribute<Market_Autoload>(), x))
@@ -136,10 +139,10 @@ namespace Marketplace
                     WorkingAs.Client => t.GetCustomAttribute<ServerOnlyPatch>() == null,
                     WorkingAs.Server => t.GetCustomAttribute<ClientOnlyPatch>() == null, 
                     _ => true 
-                })
+                }) 
                 .Where(t => t.GetCustomAttribute<ConditionalPatch>() is not { } cond || cond.Check(t)) 
                 .Do(type => _harmony.CreateClassProcessor(type).Patch());
-            
+            this.AsyncModLoaderDone();
         }
         
         private void Update() => Global_Updator?.Invoke(Time.deltaTime);

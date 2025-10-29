@@ -583,41 +583,7 @@ public static class TerritorySystem_Main_Client
         }
     }
     
-    private static void ResetAndExplore_Old(bool[] explored, bool[] exploredOthers)
-    {
-        Minimap.instance.m_sharedMapHint.gameObject.SetActive(false);
-        int length = explored.Length;
-        Color[] pixels =  Minimap.instance.m_fogTexture.GetPixels();
-
-        if (length != pixels.Length || length != exploredOthers.Length)
-        {
-            ZLog.LogError("Dimension mismatch for exploring minimap");
-            return;
-        }
-        for (int i = 0; i < length; i++)
-        {
-            pixels[i] = Color.white;
-            if (explored[i])
-            {
-                pixels[i].r = 0f;
-                Minimap.instance.m_explored[i] = true;
-            }
-            else
-            {
-                Minimap.instance.m_explored[i] = false;
-            }
-
-            if (exploredOthers[i])
-            {
-                pixels[i].g = 0f;
-                Minimap.instance.m_exploredOthers[i] = true;
-            }
-            else Minimap.instance.m_exploredOthers[i] = false;
-        }
-
-        Minimap.instance.m_fogTexture.SetPixels(pixels);
-    }
-
+    
     private static void ResetAndExplore()
     {
         int length = Minimap.instance.m_explored.Length;
@@ -1273,7 +1239,7 @@ public static class TerritorySystem_Main_Client
             __instance.m_nview.m_zdo.Set("fuel", __instance.m_maxFuel);
         }
     }
-
+    
 
     [HarmonyPatch(typeof(Smelter), nameof(Smelter.UpdateSmelter))]
     [ClientOnlyPatch]

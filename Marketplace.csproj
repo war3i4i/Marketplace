@@ -68,6 +68,9 @@
         <Reference Include="Jewelcrafting">
           <HintPath>Libs\JewelcraftingAPI.dll</HintPath>
         </Reference>
+        <Reference Include="kg_AsyncModLoader">
+          <HintPath>Libs\kg_AsyncModLoader.dll</HintPath>
+        </Reference>
         <Reference Include="LocalizationManager">
           <HintPath>Libs\LocalizationManager.dll</HintPath>
         </Reference>

@@ -6,7 +6,6 @@ using UnityEngine.Networking;
 namespace Marketplace.ExternalLoads;
 
 [UsedImplicitly]
-[Market_Autoload(Market_Autoload.Type.Both, Market_Autoload.Priority.Init)]
 public static class AssetStorage
 {
     public static AssetBundle asset = null!;
@@ -38,11 +37,10 @@ public static class AssetStorage
     public static GameObject Teleporter_VFX2 = null!;
 
     public static AudioSource AUsrc = null!;
-
-    [UsedImplicitly]
-    private static void OnInit()
+    
+    public static IEnumerator Initialize()
     {
-        asset = GetAssetBundle("kgmarketplacemod");
+        yield return GetAssetBundle("kgmarketplacemod", ab => asset = ab);
         TypeClip = asset.LoadAsset<AudioClip>("TypeKeySoundMP");
         NullSprite = asset.LoadAsset<Sprite>("NullSpriteMP");
         WoodTex = asset.LoadAsset<Texture>("cbimage");
@@ -66,7 +64,7 @@ public static class AssetStorage
         Battlepass_Exp = asset.LoadAsset<Sprite>("battlepass_icon"); 
         RustyClassesIcon = asset.LoadAsset<Sprite>("RustyClassesIcon"); 
         GlobalCachedSprites["teleporter_default"] = PortalIconDefault;
-        if (Marketplace.WorkingAsType is Marketplace.WorkingAs.Server) return; 
+        if (Marketplace.WorkingAsType is Marketplace.WorkingAs.Server) yield break; 
         ReloadImages();
         ReloadSounds();
         ReloadVideoClips(); 
@@ -122,12 +120,14 @@ public static class AssetStorage
         }
     }
 
-    private static AssetBundle GetAssetBundle(string filename)
+    public static IEnumerator GetAssetBundle(string filename, Action<AssetBundle> onComplete)
     {
         Assembly execAssembly = Assembly.GetExecutingAssembly();
         string resourceName = execAssembly.GetManifestResourceNames().Single(str => str.EndsWith(filename));
         using Stream stream = execAssembly.GetManifestResourceStream(resourceName)!;
-        return AssetBundle.LoadFromStream(stream);
+        var request = AssetBundle.LoadFromStreamAsync(stream);
+        yield return request; 
+        onComplete?.Invoke(request.assetBundle); 
     }
  
     [HarmonyPatch(typeof(AudioMan), nameof(AudioMan.Awake))] 
